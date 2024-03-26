@@ -21,6 +21,8 @@ NEO4J_TRANS_DIR = "/data/transactions"
 
 
 class Neo4j:
+    """Neo4j class. Manage all interactions with the database."""
+
     driver = None
 
     zips = [z for z in os.listdir(f"{NEO4J_ZIP_DIR}/") if z.endswith(".zip")]
@@ -52,6 +54,7 @@ class Neo4j:
         self.password = password
 
     def _start(self):
+        """Start the neo4j console."""
         retries = 0
         max_retries = 60
 
@@ -83,6 +86,7 @@ class Neo4j:
         return True
 
     def _stop(self):
+        """Stop the neo4j console."""
         retries = 0
         max_retries = 10
 
@@ -114,15 +118,18 @@ class Neo4j:
         return True
 
     def _delete(self, db):
+        """Delete a neo4j database."""
         subprocess.Popen(
             ["rm", "-rf", f"{NEO4J_DB_DIR}/{db}", f"{NEO4J_TRANS_DIR}/{db}"]
         )
 
     def _run(self, tx, cypher):
+        """Run a cypher query."""
         results = tx.run(cypher)
         return results
 
     def _switch_database(self, db):
+        """Switch to another neo4j database."""
         subprocess.Popen(
             [
                 "sed",
@@ -136,6 +143,7 @@ class Neo4j:
         ).communicate()
 
     def _load(self, archives, db):
+        """Effectively load an archive into the database."""
         ARCHIVES = {}
 
         for archive in archives:
@@ -260,6 +268,7 @@ class Neo4j:
         )
 
     def running(self):
+        """Return true if a java process is running."""
         stdout, _ = subprocess.Popen(
             ["pgrep", "java"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT
         ).communicate()
@@ -269,16 +278,19 @@ class Neo4j:
         return len(pids) > 0
 
     def open(self):
+        """Open a connection to the database."""
         self.driver = GraphDatabase.driver(
             self.uri, auth=(self.username, self.password)
         )
 
     def close(self):
+        """Close the connection to the database."""
         if self.driver is not None:
             self.driver.close()
             self.driver = None
 
     def available(self):
+        """Return true if the database connectivity is up and running."""
         try:
             self.open()
             self.driver.verify_connectivity()
@@ -287,6 +299,7 @@ class Neo4j:
         return True
 
     def use(self, db):
+        """Stop the current database and switch to a new one."""
         self.console.task("Stopping Neo4j", self._stop, done="Stopped Neo4j")
 
         self.console.task(
@@ -299,6 +312,7 @@ class Neo4j:
         self.console.task("Starting Neo4j", self._start, done="Started Neo4j")
 
     def load_zips(self, archives=[], db="neo4j"):
+        """Extract a zip archive into a new database."""
         archives = [
             f"{NEO4J_ZIP_DIR}/{a}"
             if not a.startswith(f"{NEO4J_ZIP_DIR}/")
@@ -327,6 +341,9 @@ class Neo4j:
         self.console.notice(loaded)
 
     def list(self):
+        """List the existing neo4j databases.
+        Depends on NEO4J_DB_DIR global variable.
+        """
         self.console.list(
             [
                 {
@@ -341,6 +358,8 @@ class Neo4j:
         )
 
     def run(self, cypher):
+        """Runs a cypher query.
+        Starts the database if it is not available yet."""
         results = []
 
         if not self.available():

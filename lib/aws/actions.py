@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from definitions import definitions
 
+"""AWS actions."""
 ACTIONS = {
     "ec2:AcceptReservedInstancesExchangeQuote": {
         "Access": "Write",

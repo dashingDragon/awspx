@@ -14,6 +14,7 @@ from functools import reduce
 from itertools import combinations
 
 import boto3
+from boto3.session import Session
 from botocore.exceptions import ClientError
 from botocore.exceptions import PartialCredentialsError
 from botocore.exceptions import ProfileNotFound
@@ -23,22 +24,30 @@ from lib.aws.policy import IdentityBasedPolicy
 from lib.aws.policy import ObjectACL
 from lib.aws.policy import ResourceBasedPolicy
 from lib.aws.resources import RESOURCES
+from lib.graph.base import Element
 from lib.graph.base import Elements
 from lib.graph.base import Node
+from lib.graph.edges import Action
 from lib.graph.edges import Associative
 from lib.graph.edges import Transitive
 from lib.graph.edges import Trusts
 from lib.graph.nodes import Generic
 from lib.graph.nodes import Resource
+from lib.util.console import Console
 
 
 class IngestionManager(Elements):
+    """
+    Ingestor class managing the ingestion of data from all services provided by
+    the arguments.
+    """
+
     zip = None
 
     def __init__(
         self,
-        session,
-        console=None,
+        session: Session,
+        console: (Console | None) = None,
         services=[],
         db="default",
         quick=False,
@@ -48,11 +57,12 @@ class IngestionManager(Elements):
         only_arns=[],
         skip_arns=[],
     ):
+        if console is None:
+            from lib.util.console import console
+        assert isinstance(console, Console)
+        self.console = console
         try:
-            if console is None:
-                from lib.util.console import console
-            self.console = console
-
+            # Verify that the sts identity is valid
             identity = self.console.task(
                 "Awaiting response to sts:GetCallerIdentity",
                 session.client("sts").get_caller_identity,
@@ -79,6 +89,7 @@ class IngestionManager(Elements):
                 set(only_types + [RESOURCES.label(arn) for arn in only_arns])
             )
 
+        # Ingest data for each service (IAM, EC2, etc)
         for ingestor in services:
             elements = ingestor(
                 session=session,
@@ -94,11 +105,13 @@ class IngestionManager(Elements):
             super().update(elements)
             elements.destroy()
 
+        # Load transitive edges
         self.load_transitives()
 
         if not skip_actions:
             self.load_actions()
 
+        # Save results to a zip file
         self.zip = self.save(db)
 
         self.console.spacer()
@@ -110,11 +123,15 @@ class IngestionManager(Elements):
         policies = resources.get("AWS::Iam::Policy")
         instance_profiles = resources.get("AWS::Iam::InstanceProfile")
 
+        resource: Resource
         for resource in self.console.tasklist(
             "Adding Transitive relationships",
             iterables=resources,
             done="Added Transitive relationships",
         ):
+            assert isinstance(
+                resource, Resource
+            )  # necessary assert for typing
             if resource.label() in [
                 "AWS::Iam::User",
                 "AWS::Iam::Group",
@@ -265,11 +282,13 @@ class IngestionManager(Elements):
             if e.label() in ["AWS::Iam::User", "AWS::Iam::Role"]
         )
 
+        resource: Resource
         for resource in self.console.tasklist(
             "Resolving Policy information",
             iterables=self.get("Resource"),
             done="Added Action relationships",
         ):
+            assert isinstance(resource, Resource)
             # Identity-based policies (inline and managed)
             if resource.label() in [
                 "AWS::Iam::User",
@@ -306,6 +325,7 @@ class IngestionManager(Elements):
                 )
 
                 # Only actions beginning with sts:AssumeRole are valid
+                action: Action
                 for action in [
                     action
                     for action in resource_based_policy.actions()
@@ -495,7 +515,7 @@ class IngestionManager(Elements):
         for element in elements:
             self.add(element)
 
-    def add(self, element):
+    def add(self, element: Element):
         length = len(self)
         super().add(element)
 
@@ -503,6 +523,7 @@ class IngestionManager(Elements):
             return
 
         if "TRANSITIVE" in element.labels():
+            assert isinstance(element, Transitive)
             self.console.info(
                 f"Added {element.label().capitalize()} relationship: "
                 f"({element.source()}) → ({element.target()})"
@@ -516,6 +537,8 @@ class IngestionManager(Elements):
 
 
 class SessionClientWrapper:
+    """Session Client wrapper function"""
+
     codes = [
         "AccessDenied",
         "AccessDeniedException",
@@ -565,7 +588,11 @@ class SessionClientWrapper:
 
 
 class Ingestor(Elements):
-    types = []
+    """
+    Abstract class defining the methods of an ingestor.
+    """
+
+    types: list[str] = []
     associations = []
 
     _only_types = []
@@ -575,9 +602,9 @@ class Ingestor(Elements):
 
     def __init__(
         self,
-        session,
+        session: Session,
         account,
-        console,
+        console: Console,
         load_resources=True,
         quick=False,
         only_types=[],
@@ -661,9 +688,9 @@ class Ingestor(Elements):
 
     def load_generics(self, types=None):
         for k in self.console.tasklist(
-            f"Adding Generic resources",
+            "Adding Generic resources",
             self.types,
-            done=f"Added Generic resources",
+            done="Added Generic resources",
         ):
             self.add(
                 Generic(
@@ -1187,6 +1214,7 @@ class Ingestor(Elements):
                     )
 
     def update(self, elements):
+        """Add the list of elements to the ingestor's element set."""
         for element in elements:
             self.add(element)
 
@@ -1251,6 +1279,13 @@ class Ingestor(Elements):
 
 
 class IAM(Ingestor):
+    """Ingestor class for IAM services.
+
+    This class will be ingesting data and filling the graph nodes with
+    information about users, roles, groups, policies, instance profiles,
+    mfa devices and virtual mfa devices.
+    """
+
     types = [
         "AWS::Iam::User",
         "AWS::Iam::Role",
@@ -1275,6 +1310,8 @@ class IAM(Ingestor):
             self.list_access_keys()
 
     def get_account_authorization_details(self):
+        """Make the API call for GetAccountAuthorizationDetails."""
+        # Construct a resources string
         resources = [
             str(f"{t}s" if t != "Policy" else "Policies")
             for t in [t.split(":")[-1] for t in self.types]
@@ -1290,6 +1327,7 @@ class IAM(Ingestor):
         resources = ", ".join(resources)
 
         def get_aad_resources(item, label):
+            """Parse account authorization details first level items."""
             resources = []
             properties = {}
 
@@ -1340,6 +1378,7 @@ class IAM(Ingestor):
 
             return resources
 
+        # Use boto3 paginator to retrieve resulsts of the API call
         for page in self.console.tasklist(
             f"Adding {resources}",
             iterables=self.client.get_paginator(
@@ -1357,12 +1396,14 @@ class IAM(Ingestor):
                 if isinstance(v, list)
                 for detail in v
             ]
-
+            # Labels should be RoleDetailList, GroupDetailList, UserDetailList,
+            # Policies, Marker and isTruncated
             for label, item in account_authorization_details:
                 for resource in get_aad_resources(item, label):
                     self.add(resource)
 
     def get_login_profile(self):
+        """Update the user login profile of all users contained in resources."""
         for user in self.console.tasklist(
             "Updating User login profile information",
             iterables=self.get("AWS::Iam::User").get("Resource"),
@@ -1382,6 +1423,7 @@ class IAM(Ingestor):
                 pass
 
     def list_access_keys(self):
+        """List the access keys of all users contained in resources."""
         for user in self.console.tasklist(
             "Updating User access key information",
             iterables=self.get("AWS::Iam::User").get("Resource"),
@@ -1407,6 +1449,8 @@ class IAM(Ingestor):
                 pass
 
     def list_user_mfa_devices(self):
+        """List mfa devices and virtual mfa devices of all users contained in
+        resources."""
         if not any(
             [
                 r in self.types
@@ -1445,6 +1489,12 @@ class IAM(Ingestor):
 
 
 class EC2(Ingestor):
+    """Ingestor class for EC2 services.
+
+    This class will creates nodes and edges for all ec2 resources and
+    associations.
+    """
+
     types = [
         "AWS::Ec2::DhcpOptions",
         # 'AWS::Ec2::Image',
@@ -1515,10 +1565,12 @@ class EC2(Ingestor):
         )
 
     def load_resources(self):
+        """Load resources into the ingestor and add nat gateways."""
         self.get_nat_gateways()
         super().load_resources()
 
     def get_nat_gateways(self):
+        """Parse nat gateways from resources"""
         if "AWS::Ec2::NatGateway" not in self.types:
             return
 
@@ -1552,6 +1604,7 @@ class EC2(Ingestor):
             self.add(nat_gateway)
 
     def get_instance_user_data(self):
+        """Parse instance user data for all instances in resources."""
         for instance in self.console.tasklist(
             "Updating Instance user data information",
             iterables=self.get("AWS::Ec2::Instance").get("Resource"),
@@ -1588,6 +1641,8 @@ class EC2(Ingestor):
 
 
 class S3(Ingestor):
+    """Ingestor class for s3 services."""
+
     types = [
         "AWS::S3::Bucket",
         "AWS::S3::Object",
@@ -1702,6 +1757,8 @@ class S3(Ingestor):
 
 
 class Lambda(Ingestor):
+    """Ingestor class for lambda services."""
+
     types = [
         "AWS::Lambda::Function",
     ]
@@ -1712,6 +1769,8 @@ class Lambda(Ingestor):
         self.list_functions()
 
     def list_functions(self):
+        """Make API calls to lambda:ListFunctions to list all lambda
+        functions"""
         if "AWS::Lambda::Function" not in self.types:
             return
 

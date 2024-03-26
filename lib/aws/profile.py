@@ -11,6 +11,8 @@ from botocore.session import Session
 
 
 class InteractivePrompter:
+    """Interactive prompter class used to gather inputs from the user."""
+
     def __init__(self, console):
         self.console = console
 
@@ -32,6 +34,13 @@ class InteractivePrompter:
 
 
 class Profile:
+    """AWS profile class.
+
+    This class manages aws profiles, you can use it to create, reconfigure or
+    delete an aws profile.
+    """
+
+    # List of AWS regions.
     regions = [
         "af-south-1",
         "ap-east-1",
@@ -75,9 +84,13 @@ class Profile:
         self.config.read(self.config_file)
 
     def create(self, profile=None):
+        """Create a new aws profile. Essentially ask to configure a given
+        profile with aws configure --profile [profile]
+        """
         self.reconfigure(profile)
 
     def reconfigure(self, profile=None):
+        """Reconfigure the given aws profile."""
         if profile is None:
             return
 
@@ -97,11 +110,13 @@ class Profile:
         driver.main(args=["configure", "--profile", profile])
 
     def list(self):
+        """List the profile credentials."""
         self.console.list(
             [{"Profile": p} for p in self.credentials.keys() if p != "DEFAULT"]
         )
 
     def delete(self, profile=None):
+        """Delete the profile."""
         if profile is None:
             return
 

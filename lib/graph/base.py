@@ -5,6 +5,10 @@ from datetime import datetime
 
 
 class Element:
+    """Most basic element of the graph. An element has properties and labels.
+    All elements must have a name.
+    """
+
     def __init__(self, properties={}, labels=[], key="Name"):
         if not isinstance(properties, dict):
             raise ValueError()
@@ -45,10 +49,12 @@ class Element:
         self._labels = set(labels)
         self._key = key
 
-    def properties(self):
+    def properties(self) -> dict:
+        """Return the dictionary of properties of an element."""
         return self._properties
 
-    def label(self):
+    def label(self) -> str:
+        """Return the label of an element."""
         return [
             *[
                 label
@@ -58,19 +64,24 @@ class Element:
             "",
         ][0]
 
-    def labels(self):
+    def labels(self) -> list[str]:
+        """Return the list of labels of the element."""
         return sorted(list(self._labels))
 
-    def type(self, label):
+    def type(self, label) -> bool:
+        """Return true if label is one of the element's labels."""
         return label in self._labels
 
     def id(self):
+        """Return the id of an element."""
         return self._properties[self._key]
 
     def get(self, k):
+        """Get a specific property according to a key."""
         return self._properties[k]
 
     def set(self, k, v):
+        """Set a specific property according to a key."""
         self._properties[k] = v
 
     def __hash__(self):
@@ -95,11 +106,15 @@ class Element:
 
 
 class Node(Element):
+    """Node base element. A node is a simple element."""
+
     def __init__(self, properties={}, labels=[], key="Name"):
         super().__init__(properties, labels, key)
 
 
 class Edge(Element):
+    """Edge base element. An edge is a relationship between two nodes."""
+
     def __init__(self, properties={}, source=None, target=None, label=None):
         if label is None:
             label = [str(self.__class__.__name__).upper()]
@@ -111,6 +126,8 @@ class Edge(Element):
         self._set_id()
 
     def _set_id(self):
+        """Set the id of the edge as the hash of the cypher query
+        representation of the relationship."""
         self._id = hash(
             "({source})-[:{label}{{{properties}}}]->({target})".format(
                 source=self.source(),
@@ -121,15 +138,19 @@ class Edge(Element):
         )
 
     def source(self):
+        """Return the source of the relationship."""
         return self._source
 
     def target(self):
+        """Return the target of the relationship."""
         return self._target
 
     def id(self):
+        """Return the id of the relationship."""
         return self._id
 
     def modify(self, k, v):
+        """Modify an edge property and update the edge's id."""
         super().set(k, v)
         self._set_id()
 
@@ -138,6 +159,8 @@ class Edge(Element):
 
 
 class Elements(set):
+    """Class containing a set of elements."""
+
     def __init__(self, _=[], load=False, generics=False):
         super().__init__(_)
 
@@ -149,6 +172,7 @@ class Elements(set):
         return Elements(self)
 
     def get(self, label):
+        """Get an element from the element set according to its label."""
         return Elements(filter(lambda r: r.type(label), self))
 
     def __repr__(self):

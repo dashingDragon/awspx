@@ -9,8 +9,11 @@ from lib.graph.db import Neo4j
 
 
 class Attacks:
+    """Attacks class defining the different ways to privesc inside an aws
+    account using the different services supported by awspx."""
+
     definitions = definitions
-    stats = []
+    stats: list[dict] = []
 
     def __init__(
         self,
@@ -26,6 +29,7 @@ class Attacks:
         self.console = console
         self.conditional = skip_conditional_actions
 
+        # Create the definitions according to only_attacks and skip_attacks
         self.definitions = {
             k: self.definitions[k]
             for k in list(
@@ -33,12 +37,14 @@ class Attacks:
             )
             if k not in skip_attacks
         }
+        # Create the attack cypher queries
         self.queries = {
             k: self.translate(k, max_search_depth)
             for k, v in self.definitions.items()
         }
 
     def translate(self, name, max_search_depth=""):
+        """Translate the attack definition into cypher queries"""
         definition = self.definitions[name]
         attack = definition["Attack"]
         cypher = ""

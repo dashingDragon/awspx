@@ -4,6 +4,8 @@ import re
 
 
 class Resources(dict):
+    """Custom class for aws resources. Different from the Resource node class."""
+
     # https://docs.aws.amazon.com/general/latest/gr/aws-arns-and-namespaces.html#genref-aws-service-namespaces
 
     types = {
@@ -98,6 +100,8 @@ class Resources(dict):
         "AWS::S3::ObjectLambdaAccessPoint": "arn:aws:s3-object-lambda:{Region}:{Account}:accesspoint/{AccessPointName}",
         "AWS::S3::StorageLensConfiguration": "arn:aws:s3:{Region}:{Account}:storage-lens/{ConfigId}",
     }
+
+    # regex used for dealing with resources
     regex = {
         "Region": r"([a-z0-9-]*)",
         "Account": r"(\d{12})?",
@@ -139,4 +143,5 @@ class Resources(dict):
         return None
 
 
+# Export this class as a global instance
 RESOURCES = Resources()

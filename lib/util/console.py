@@ -25,6 +25,9 @@ logger.addHandler(logging.NullHandler())
 
 
 class Log(Handler):
+    """Custom logger class used to define special terminal colors and verbosity
+    levels."""
+
     levels = {
         "CRITICAL": Style(color="red", bold=True, reverse=True),
         "ERROR": Style(color="red", bold=True),
@@ -86,6 +89,8 @@ class Log(Handler):
 
 
 class Operation(Progress):
+    """Class symbolizing an operation."""
+
     table = None
     live = None
 
@@ -100,6 +105,8 @@ class Operation(Progress):
 
 
 class Console(Table):
+    """Console class built on top of rich's Table class."""
+
     _verbose = False
     console = RichConsole()
     logger = logger
@@ -117,16 +124,19 @@ class Console(Table):
             self.thread = Operation(self)
 
     def debug(self, message, silent=False):
+        """Log a message with debug level"""
         self.logger.debug(message)
         if not silent:
             self._annotate(message, style="dim")
 
     def info(self, message):
+        """Log a message with info level"""
         self.logger.info(message)
         if not self._verbose:
             self._annotate(message, "dim")
 
     def notice(self, message, silent=False):
+        """Log a message with notice level"""
         if self.logger.isEnabledFor(25):
             self.logger._log(25, message, args=None)
 
@@ -134,16 +144,19 @@ class Console(Table):
             self._annotate(message, style="dim")
 
     def warn(self, message):
+        """Log a message with warning level"""
         self.logger.warn(message)
         if not self._verbose:
             self._annotate(message, "dark_red")
 
     def error(self, message):
+        """Log a message with error level"""
         self.logger.error(message)
         if not self._verbose:
             self._annotate(message, "bold red")
 
     def critical(self, message):
+        """Log a message with critical level"""
         if isinstance(message, str):
             self.logger.critical(message)
             if not self._verbose:
@@ -158,6 +171,7 @@ class Console(Table):
         os._exit(1)
 
     def item(self, message):
+        """Create a new item in the terminal."""
         self.notice(message, silent=True)
 
         if self._verbose:
@@ -173,9 +187,24 @@ class Console(Table):
         return service
 
     def spacer(self):
+        """Add a new row in the console."""
         self.add_row()
 
-    def task(self, message, function=None, args=[], done=None):
+    def task(self, message: str, function=None, args=[], done=None):
+        """Launch a new task in the console.
+
+        Parameters
+        ----------
+        message: str
+            Message to print before executing the task.
+        function {reference}
+            Function to execute.
+        args: []
+            Arguments passed to the function.
+        done: str
+            Message to print upon successful execution. (Default: None)
+
+        """
         self.notice(message, silent=True)
 
         (text, progress, busy) = self._add(message)
@@ -198,9 +227,27 @@ class Console(Table):
         return results
 
     def tasklist(self, message, iterables=[], wait=None, done=None):
+        """Launch a list of new tasks in the console.
+
+        Parameters
+        ----------
+        message: str
+            Message to print before executing the task.
+        iterables: []
+            The iterable list over which to execute tasks.
+        done: str
+            Message to print upon successful execution. (Default: None)
+
+        Returns
+        ----------
+        iterable
+            generator object on the iterables list.
+        """
+        # Return if the iterables variable is not iterable
         if "__len__" in dir(iterables) and not len(iterables) > 0:
             return
 
+        # Write the message before executing
         self.notice(message, silent=True)
 
         (text, progress, busy) = self._add(message, iterables=iterables)
@@ -263,7 +310,10 @@ class Console(Table):
             self.add_row(t)
 
     def input(self, message):
+        """Input function"""
+
         def readchar():
+            """Read an input from the terminal."""
             fd = sys.stdin.fileno()
             settings = termios.tcgetattr(fd)
 
@@ -339,6 +389,7 @@ class Console(Table):
         self._verbose = True
 
     def _add(self, message, iterables=[], override=None):
+        """Add a new operation to the operation list."""
         key = Text(message, overflow="ellipsis", no_wrap=True)
         busy = Text()
 
@@ -406,4 +457,5 @@ class Console(Table):
             self.console.print()
 
 
+# Export the console as a global instance
 console = Console()

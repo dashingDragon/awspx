@@ -7,6 +7,8 @@ from functools import reduce
 
 from lib.aws.actions import ACTIONS
 from lib.aws.resources import RESOURCES
+from lib.aws.resources import Resources
+from lib.graph.base import Element
 from lib.graph.base import Elements
 from lib.graph.edges import Action
 from lib.graph.nodes import External
@@ -15,10 +17,12 @@ from lib.graph.nodes import Resource
 from lib.util.console import console
 
 
-""" Consists of Principals, Actions, Resources, and Conditions """
-
-
 class Statement:
+    """Global statement class.
+
+    A statement consists of Principals, Actions, Resources, and Conditions.
+    """
+
     _principals = None
     _actions = None
     _resources = None
@@ -27,7 +31,9 @@ class Statement:
     __statement = {}
     __resources = Elements()
 
-    def __init__(self, statement, resource, resources):
+    def __init__(
+        self, statement: Statement, resource: Resource, resources: Resources
+    ):
         self.__statement = copy.deepcopy(statement)
         self.__resources = resources
 
@@ -61,6 +67,7 @@ class Statement:
         ):
             self.__statement["Resource"] = [str(resource)]
             self._resources = Elements([resource])
+            assert isinstance(self.__resources, Resources)
 
     def _get_principals(self):
         """https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_principal.html"""
@@ -298,6 +305,7 @@ class Statement:
         return principals
 
     def _get_actions(self):
+        """Parse the actions from the statement."""
         actions = set()
         key = list(filter(lambda x: "Action" in x, self.__statement.keys()))[0]
         statement = (
@@ -331,6 +339,7 @@ class Statement:
         return sorted(list(actions))
 
     def _get_resources_and_conditions(self):
+        """Parse the resources and the conditions from the statement."""
         resources = Elements()
         conditions = {}
 
@@ -409,13 +418,16 @@ class Statement:
 
         return (resources, conditions)
 
-    def principals(self):
+    def principals(self) -> Elements:
+        """Set the _principals attribute of the statement."""
         if self._principals is None:
             self._principals = self._get_principals()
 
         return self._principals
 
-    def actions(self):
+    def actions(self) -> Elements:
+        """Return the actions associated to the statement."""
+        # If actions are already defined, return them
         if self._actions is not None:
             return self._actions
 
@@ -450,7 +462,9 @@ class Statement:
                 else:
                     action_resources.update(resources.get(affected_type))
 
+            resource: Resource
             for resource in action_resources:
+                assert isinstance(resource, Resource)
                 # Action conditions comprise of resource-level conditions and statement conditions
                 resource_conditions = list(
                     conditions[str(resource)]
@@ -488,7 +502,9 @@ class Statement:
                     {},
                 )
 
+                assert isinstance(self._principals, Elements)
                 for principal in self._principals:
+                    assert isinstance(principal, Element)
                     actions.add(
                         Action(
                             properties={
@@ -507,13 +523,19 @@ class Statement:
 
         # Unset resource level permission conditions
         for resource in self._resources:
+            assert isinstance(resource, Resource)
             resource.condition = []
 
         self._actions = actions
+        assert isinstance(self._actions, Elements)
 
         return self._actions
 
-    def resources(self):
+    def resources(self) -> Elements:
+        """Return the resources associated to the statement.
+
+        Parse the resources and conditions if they are not yet defined.
+        """
         if self._resources is None:
             (
                 self._resources,
@@ -523,6 +545,10 @@ class Statement:
         return self._resources
 
     def conditions(self):
+        """Return the conditions associated to the statement.
+
+        Parse the resources and conditions if they are not yet defined.
+        """
         if self._conditions is None:
             (
                 self._resources,
@@ -532,11 +558,15 @@ class Statement:
         return self._conditions
 
 
-""" Consists of one or more Statements """
-
-
 class Document:
-    def __init__(self, document, resource, resources):
+    """Document class.
+
+    A document consists of one or more Statements.
+    """
+
+    def __init__(
+        self, document: Document, resource: Resource, resources: Resources
+    ):
         self.statements = []
 
         if not (
@@ -579,10 +609,12 @@ class Document:
         return actions
 
 
-""" Consists of one or more Documents """
-
-
 class Policy:
+    """Policy class.
+
+    A policy consists of one or more Documents.
+    """
+
     def __init__(self, resource, resources):
         self.__resource = resource
         self.documents = {}
@@ -612,11 +644,10 @@ class Policy:
         return actions
 
 
-""" Inline and Managed Policies associated with IAM entities """
-
-
 class IdentityBasedPolicy(Policy):
-    def __init__(self, resource, resources):
+    """Inline and Managed Policies associated with IAM entities"""
+
+    def __init__(self, resource: Resource, resources: Resources):
         super().__init__(resource, resources)
 
         key = list(
@@ -634,10 +665,9 @@ class IdentityBasedPolicy(Policy):
                 self.documents[name] = Document(document, resource, resources)
 
 
-""" Policies that define actions permitted to be performed on the associated resource. """
-
-
 class ResourceBasedPolicy(Policy):
+    """Policies that define actions permitted to be performed on the associated resource."""
+
     # https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_aws-services-that-work-with-iam.html
 
     def __init__(self, resource, resources, keys=[]):
@@ -658,10 +688,9 @@ class ResourceBasedPolicy(Policy):
             )
 
 
-""" Resource based policy variant, specific to S3 Buckets and their Objects """
-
-
 class BucketACL(ResourceBasedPolicy):
+    """Resource based policy variant, specific to S3 Buckets and their Objects"""
+
     # https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#specifying-grantee
 
     AccessControlList = {
@@ -751,6 +780,11 @@ class BucketACL(ResourceBasedPolicy):
 
 
 class ObjectACL(BucketACL):
+    """AWS Access Control List class.
+
+    This class defines the different parameters used in AWS ACLs.
+    """
+
     # https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#specifying-grantee
 
     AccessControlList = {

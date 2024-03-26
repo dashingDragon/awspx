@@ -4,16 +4,22 @@ from lib.graph.base import Edge
 
 
 class Associative(Edge):
+    """Associative edge."""
+
     def __init__(self, properties={}, source=None, target=None):
         super().__init__(properties, source, target)
 
 
 class Transitive(Edge):
+    """Transitive edge."""
+
     def __init__(self, properties={}, source=None, target=None):
         super().__init__(properties, source, target)
 
 
 class Action(Edge):
+    """Action edge."""
+
     def __init__(self, properties={}, source=None, target=None):
         for key in [
             "Name",
@@ -30,5 +36,7 @@ class Action(Edge):
 
 
 class Trusts(Action):
+    """Trusts edge."""
+
     def __init__(self, properties={}, source=None, target=None):
         super().__init__(properties, source, target)

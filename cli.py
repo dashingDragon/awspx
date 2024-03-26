@@ -27,6 +27,7 @@ def handle_update(args):
     """
     Function to handle the following subcommand :
     awspx update
+    This function uses gitpython to update the repository and the npm modules.
     """
 
     repo = git.Repo("/opt/awspx")
@@ -52,6 +53,7 @@ def handle_profile(args, console=console):
     """
     Function to handle the following subcommand :
     awspx profile
+    This function will create, list or delete a profile.
     """
 
     profile = Profile(console=console)
@@ -74,6 +76,8 @@ def handle_ingest(args):
     """
     Function to handle the following subcommand :
     awspx ingest
+    This function will use the specified credentials to gather info about the
+    aws environmnent.
     """
 
     session = None
@@ -162,6 +166,7 @@ def handle_ingest(args):
     except ClientError as e:
         console.critical(e)
 
+    # Ingest profile data
     ingestor = IngestionManager(
         session=session,
         console=console,
@@ -178,6 +183,8 @@ def handle_ingest(args):
     assert ingestor.zip is not None, "Ingestion failed"
 
     args.load_zips = [ingestor.zip]
+
+    # Create the db
     handle_db(args, console=console.item("Creating Database"))
 
     if not (args.skip_attacks_all or args.skip_actions_all):
@@ -188,6 +195,7 @@ def handle_attacks(args, console=console):
     """
     Function to handle the following subcommand :
     awspx attacks
+    This function will compute the different attack paths supported.
     """
 
     attacks = Attacks(
@@ -207,6 +215,8 @@ def handle_db(args, console=console):
     """
     Function to handle the following subcommand :
     awspx db
+    This function will load a db from a zip file, list the existing dbs or use
+    an existing db.
     """
 
     db = Neo4j(console=console)
@@ -225,6 +235,8 @@ def handle_db(args, console=console):
 
 
 def main():
+    """Main function defining the arguments and calling the handler functions."""
+
     def profile(p):
         """Verify that the provided profile has the right format"""
         if p in list(Profile().credentials.sections()):
@@ -605,6 +617,7 @@ def main():
         console.start()
 
     try:
+        # Call the handler function defined in arguments
         args.func(args)
 
     except (KeyboardInterrupt, SystemExit):

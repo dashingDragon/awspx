@@ -20,6 +20,8 @@ class Keywords:
 
 
 class Regex:
+    """Regex class for aws data types."""
+
     arn = r"arn:aws:([a-z0-9]+):({Region}|[a-z0-9-]*):({Account}|[0-9]{12}|aws)?:([a-z0-9-]+)([A-Za-z0-9-_\.:/{}]+)?"  # noqa: E501
     resource = r"(AWS(::[A-Za-z0-9-]*){1,2})"
     integer = r"[0-9]+"

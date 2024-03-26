@@ -4,6 +4,8 @@ from lib.graph.base import Node
 
 
 class Generic(Node):
+    """Generic node."""
+
     def __init__(self, properties={}, labels=[]):
         label = self.__class__.__name__
 
@@ -15,6 +17,8 @@ class Generic(Node):
 
 
 class Resource(Node):
+    """Resource node."""
+
     def __init__(self, properties={}, labels=[], key="Arn"):
         label = self.__class__.__name__
 
@@ -25,6 +29,7 @@ class Resource(Node):
         )
 
     def account(self):
+        """Return the account associated to the resource node."""
         if (
             "Arn" not in self.properties()
             or len(self.properties()["Arn"].split(":")) < 5
@@ -35,6 +40,8 @@ class Resource(Node):
 
 
 class External(Node):
+    """External node."""
+
     def __init__(self, properties={}, labels=[], key="Name"):
         label = self.__class__.__name__
 
