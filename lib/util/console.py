@@ -1,22 +1,21 @@
-
+from __future__ import annotations
 
 import logging
 import os
-import re
 import sys
 import termios
 import threading
 import tty
 from datetime import datetime
 from logging import Handler
-from pathlib import Path
 
 from rich._log_render import LogRender
 from rich.console import Console as RichConsole
 from rich.progress import Progress
 from rich.progress_bar import ProgressBar
 from rich.style import Style
-from rich.table import Table, box
+from rich.table import box
+from rich.table import Table
 from rich.text import Text
 
 logging.addLevelName(25, "NOTICE")
@@ -26,14 +25,13 @@ logger.addHandler(logging.NullHandler())
 
 
 class Log(Handler):
-
     levels = {
         "CRITICAL": Style(color="red", bold=True, reverse=True),
-        "ERROR":  Style(color="red", bold=True),
-        "WARNING":  Style(color="dark_red"),
-        "NOTICE":  Style(color="yellow"),
-        "INFO":  Style(dim=True),
-        "DEBUG":  Style(color="green", dim=True),
+        "ERROR": Style(color="red", bold=True),
+        "WARNING": Style(color="dark_red"),
+        "NOTICE": Style(color="yellow"),
+        "INFO": Style(dim=True),
+        "DEBUG": Style(color="green", dim=True),
     }
 
     def __init__(
@@ -41,34 +39,38 @@ class Log(Handler):
         level=logging.DEBUG,
         console=RichConsole(),
     ):
-
         super().__init__(level=level)
 
         self.console = console
         self._render = LogRender(show_level=True)
 
     def _styllize(self, record):
-
         from lib.util.keywords import Keywords, Regex
 
         message = Text(self.format(record))
 
-        message.highlight_words(sorted([*Keywords.resource,
-                                        *Keywords.action,
-                                        *Keywords.edge,
-                                        *Keywords.node,
-                                        *Keywords.attack
-                                        ], key=len, reverse=True),
-                                'i')
+        message.highlight_words(
+            sorted(
+                [
+                    *Keywords.resource,
+                    *Keywords.action,
+                    *Keywords.edge,
+                    *Keywords.node,
+                    *Keywords.attack,
+                ],
+                key=len,
+                reverse=True,
+            ),
+            "i",
+        )
 
-        message.highlight_regex(Regex.integer, 'bold i')
-        message.highlight_regex(Regex.resource, 'i not bold')
-        message.highlight_regex(Regex.arn, 'dim not bold not i')
+        message.highlight_regex(Regex.integer, "bold i")
+        message.highlight_regex(Regex.resource, "i not bold")
+        message.highlight_regex(Regex.arn, "dim not bold not i")
 
         return message
 
     def emit(self, record):
-
         level = record.levelname.upper()
         style = self.levels[level] if level in self.levels else None
 
@@ -78,13 +80,12 @@ class Log(Handler):
                 [self._styllize(record)],
                 log_time=datetime.fromtimestamp(record.created),
                 time_format="[%d/%m/%y %H:%M:%S]",
-                level=Text(level, style=style)
+                level=Text(level, style=style),
             )
         )
 
 
 class Operation(Progress):
-
     table = None
     live = None
 
@@ -94,24 +95,22 @@ class Operation(Progress):
         self.table = table
 
     def get_renderables(self):
-
         with self._lock:
             yield self.table
 
 
 class Console(Table):
-
     _verbose = False
     console = RichConsole()
     logger = logger
     level = logging.DEBUG
 
     def __init__(self, name=None, log=False):
-
         super().__init__(
             box=None if name is None else box.SQUARE,
             show_header=name is not None,
-            expand=True)
+            expand=True,
+        )
 
         if name is None:
             self.add_row(" ")
@@ -145,7 +144,6 @@ class Console(Table):
             self._annotate(message, "bold red")
 
     def critical(self, message):
-
         if isinstance(message, str):
             self.logger.critical(message)
             if not self._verbose:
@@ -160,7 +158,6 @@ class Console(Table):
         os._exit(1)
 
     def item(self, message):
-
         self.notice(message, silent=True)
 
         if self._verbose:
@@ -179,14 +176,13 @@ class Console(Table):
         self.add_row()
 
     def task(self, message, function=None, args=[], done=None):
-
         self.notice(message, silent=True)
 
         (text, progress, busy) = self._add(message)
 
         results = function(*args)
 
-        if done.__class__.__name__ == 'function':
+        if done.__class__.__name__ == "function":
             done = done(results)
 
         if done is not None:
@@ -202,8 +198,7 @@ class Console(Table):
         return results
 
     def tasklist(self, message, iterables=[], wait=None, done=None):
-
-        if '__len__' in dir(iterables) and not len(iterables) > 0:
+        if "__len__" in dir(iterables) and not len(iterables) > 0:
             return
 
         self.notice(message, silent=True)
@@ -211,26 +206,30 @@ class Console(Table):
         (text, progress, busy) = self._add(message, iterables=iterables)
 
         if wait is not None:
-            self.debug(wait if wait.__class__.__name__ != 'function'
-                       else wait(0))
+            self.debug(
+                wait if wait.__class__.__name__ != "function" else wait(0)
+            )
         else:
             self._annotate()
 
         for completed, iterable in enumerate(iterables, 1):
-
             if wait is not None:
                 self._annotate()
 
             yield iterable
 
-            if (wait is not None and ('__len__' not in dir(iterables)
-                                      or completed != len(iterables))):
-                self.debug(wait if wait.__class__.__name__ != 'function'
-                           else wait(completed))
+            if wait is not None and (
+                "__len__" not in dir(iterables) or completed != len(iterables)
+            ):
+                self.debug(
+                    wait
+                    if wait.__class__.__name__ != "function"
+                    else wait(completed)
+                )
 
             progress.update(completed=completed)
 
-        if done.__class__.__name__ == 'function':
+        if done.__class__.__name__ == "function":
             done = done(iterables)
 
         if done is not None:
@@ -244,7 +243,6 @@ class Console(Table):
         self._annotate()
 
     def list(self, dictionaries=[]):
-
         if not isinstance(dictionaries, list):
             dictionaries = [dictionaries]
 
@@ -265,9 +263,7 @@ class Console(Table):
             self.add_row(t)
 
     def input(self, message):
-
         def readchar():
-
             fd = sys.stdin.fileno()
             settings = termios.tcgetattr(fd)
 
@@ -277,16 +273,15 @@ class Console(Table):
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, settings)
 
-            if char == '\x03':
+            if char == "\x03":
                 raise KeyboardInterrupt
 
-            elif char == '\x04':
+            elif char == "\x04":
                 raise EOFError
 
             return char
 
         def read(main, message, value):
-
             (text, value, _) = self._add(message, override=value)
             text.style = "b"
             value.style = "i"
@@ -296,7 +291,6 @@ class Console(Table):
                 char = None
 
                 while True:
-
                     with console.thread.live._lock:
                         char = readchar()
                         # Enter
@@ -307,10 +301,10 @@ class Console(Table):
                             continue
                         # Backspace
                         elif ord(char) == 127:
-                            value._text = [''.join(value._text)[:-1]]
+                            value._text = ["".join(value._text)[:-1]]
 
                         else:
-                            value._text = [''.join([*value._text, char])]
+                            value._text = ["".join([*value._text, char])]
 
                         self.refresh()
 
@@ -322,19 +316,19 @@ class Console(Table):
         if not self._verbose:
             value = Text("")
 
-            input_thread = threading.Thread(target=read,
-                                            args=(self, message, value))
+            input_thread = threading.Thread(
+                target=read, args=(self, message, value)
+            )
             input_thread.start()
             input_thread.join()
 
-            return ''.join(value._text)
+            return "".join(value._text)
         else:
             sys.stdout.write(message)
             sys.stdout.flush()
             return input()
 
     def verbose(self):
-
         if self._verbose:
             return
 
@@ -345,12 +339,10 @@ class Console(Table):
         self._verbose = True
 
     def _add(self, message, iterables=[], override=None):
-
-        key = Text(message, overflow='ellipsis', no_wrap=True)
+        key = Text(message, overflow="ellipsis", no_wrap=True)
         busy = Text()
 
         if override is None:
-
             total = 1.0
             pulse = True
 
@@ -364,19 +356,27 @@ class Console(Table):
 
             busy._text = ["→"]
             color = Style(color="rgb(161, 209, 255)", dim=True)
-            value = ProgressBar(total=total, pulse=pulse,
-                                complete_style=color,
-                                finished_style=color,
-                                pulse_style=color)
+            value = ProgressBar(
+                total=total,
+                pulse=pulse,
+                complete_style=color,
+                finished_style=color,
+                pulse_style=color,
+            )
         else:
             value = override
 
-        operation = Table(box=None, show_header=False,
-                          show_footer=False, show_edge=True,
-                          padding=(0, 0 if self.show_header else 1))
+        operation = Table(
+            box=None,
+            show_header=False,
+            show_footer=False,
+            show_edge=True,
+            padding=(0, 0 if self.show_header else 1),
+        )
 
-        operation.add_column(width=3 if self.show_header else 2,
-                             justify="center")
+        operation.add_column(
+            width=3 if self.show_header else 2, justify="center"
+        )
         operation.add_column(width=62 if self.show_header else 60)
         operation.add_column()
         operation.add_row(busy, key, value)
@@ -385,7 +385,6 @@ class Console(Table):
         return (key, value, busy)
 
     def _annotate(self, message="", style=None):
-
         if self._verbose:
             return
 

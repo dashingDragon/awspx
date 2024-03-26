@@ -259,7 +259,7 @@ export default {
         "MATCH (source)-[:TRANSITIVE|ATTACK]->(), (target) " +
           `WHERE ID(target) = ${id} AND (source:External OR source:Resource)  ` +
           "WITH source, target " +
-          "CALL apoc.algo.dijkstraWithDefaultWeight(source, target, 'TRANSITIVE>|ATTACK>', '', 0) " + 
+          "CALL apoc.algo.dijkstraWithDefaultWeight(source, target, 'TRANSITIVE>|ATTACK>', '', 0) " +
           "YIELD path " +
           "OPTIONAL MATCH admin=(:Admin)-->(target)" +
           "RETURN path, admin"
@@ -653,7 +653,7 @@ export default {
         .difference(selection)
         .removeClass("selected")
         .addClass("unselected");
-        
+
       selection.removeClass("unselected").addClass("selected");
     },
 

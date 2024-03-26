@@ -1,18 +1,11 @@
+from __future__ import annotations
 
 import json
-import os
 from datetime import datetime
-
-from lib.aws.actions import ACTIONS
-from lib.aws.resources import RESOURCES
-
-from lib.graph.db import Neo4j
 
 
 class Element:
-
     def __init__(self, properties={}, labels=[], key="Name"):
-
         if not isinstance(properties, dict):
             raise ValueError()
 
@@ -25,7 +18,6 @@ class Element:
         self._properties = {}
 
         for k, v in properties.items():
-
             if any([isinstance(v, t) for t in [datetime, dict, list, int]]):
                 self._properties[k] = v
                 continue
@@ -42,7 +34,8 @@ class Element:
 
             try:
                 self._properties[k] = datetime.strptime(
-                    v[:-6], '%Y-%m-%d %H:%M:%S')
+                    v[:-6], "%Y-%m-%d %H:%M:%S"
+                )
                 continue
             except ValueError:
                 pass
@@ -57,10 +50,12 @@ class Element:
 
     def label(self):
         return [
-            *[l for l in self.labels()
-              if l != self.__class__.__name__
-              ],
-            ""
+            *[
+                label
+                for label in self.labels()
+                if label != self.__class__.__name__
+            ],
+            "",
         ][0]
 
     def labels(self):
@@ -105,9 +100,7 @@ class Node(Element):
 
 
 class Edge(Element):
-
     def __init__(self, properties={}, source=None, target=None, label=None):
-
         if label is None:
             label = [str(self.__class__.__name__).upper()]
 
@@ -118,12 +111,13 @@ class Edge(Element):
         self._set_id()
 
     def _set_id(self):
-
-        self._id = hash("({source})-[:{label}{{{properties}}}]->({target})".format(
-            source=self.source(),
-            label=self.labels()[0],
-            properties=json.dumps(self.properties(), sort_keys=True),
-            target=self.target())
+        self._id = hash(
+            "({source})-[:{label}{{{properties}}}]->({target})".format(
+                source=self.source(),
+                label=self.labels()[0],
+                properties=json.dumps(self.properties(), sort_keys=True),
+                target=self.target(),
+            )
         )
 
     def source(self):
@@ -144,9 +138,7 @@ class Edge(Element):
 
 
 class Elements(set):
-
     def __init__(self, _=[], load=False, generics=False):
-
         super().__init__(_)
 
     def __add__(self, other):
